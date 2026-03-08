@@ -66,17 +66,21 @@ const buildWindowsInstallerScript = (manifestUrl: string) =>
     "$installRoot = Join-Path $env:LOCALAPPDATA 'SecureGuard'",
     "$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'SecureGuard Desktop.lnk'",
     "$startMenuDir = Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs\\SecureGuard'",
-    "$musicSource = ''",
-    "# Para tocar audio durante a instalacao, informe em $musicSource um arquivo direto/licenciado (.mp3/.wav/.wma).",
+    `$musicSource = '${new URL("/installer-audio/moonlight-loop.mpeg", manifestUrl).toString()}'`,
+    "$musicTempFile = Join-Path $env:TEMP 'SecureGuard-Installer-Music.mpeg'",
     "function Start-InstallerMusic {",
     "  param([string]$Source)",
     "  if ([string]::IsNullOrWhiteSpace($Source)) { return $null }",
     "  try {",
-    "    Add-Type -AssemblyName presentationCore | Out-Null",
-    "    $player = New-Object System.Windows.Media.MediaPlayer",
-    "    $player.Open([Uri]$Source)",
-    "    $player.Volume = 0.35",
-    "    $player.Play()",
+    "    Invoke-WebRequest -Uri $Source -OutFile $musicTempFile",
+    "    $player = New-Object -ComObject WMPlayer.OCX",
+    "    $playlist = $player.playlistCollection.newPlaylist('SecureGuard Installer')",
+    "    $media = $player.newMedia($musicTempFile)",
+    "    $playlist.appendItem($media) | Out-Null",
+    "    $player.currentPlaylist = $playlist",
+    "    $player.settings.volume = 35",
+    "    $player.settings.setMode('loop', $true)",
+    "    $player.controls.play() | Out-Null",
     "    return $player",
     "  } catch {",
     "    Write-Host ('Musica ignorada: ' + $_.Exception.Message)",
@@ -117,7 +121,13 @@ const buildWindowsInstallerScript = (manifestUrl: string) =>
     "  Write-Host 'Instalacao concluida com sucesso.'",
     "  if (-not $SkipLaunch) { Start-Process $targetFile }",
     "} finally {",
-    "  if ($player) { try { $player.Stop() } catch {} }",
+    "  if ($player) {",
+    "    try { $player.controls.stop() | Out-Null } catch {}",
+    "    try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($player) } catch {}",
+    "  }",
+    "  if (Test-Path $musicTempFile) {",
+    "    try { Remove-Item $musicTempFile -Force } catch {}",
+    "  }",
     "}",
   ].join("\n");
 
@@ -239,6 +249,9 @@ const DownloadsPage = () => {
               </div>
               <p className="download-note">
                 O instalador consulta sempre o release mais recente, valida o checksum e atualiza a instalacao local.
+              </p>
+              <p className="download-note">
+                Durante a instalacao, o script toca em loop o audio configurado no site enquanto baixa e prepara o app.
               </p>
             </article>
 
