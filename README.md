@@ -1,9 +1,6 @@
-# Site_Data_Guard
+# SecureGuard Site
 
 Site publico do SecureGuard para deploy no Vercel.
-
-## Repositorio oficial
-- GitHub: `https://github.com/caio-3htty/Site_Data_Guard.git`
 
 ## Rotas
 - `/`: apresentacao do produto

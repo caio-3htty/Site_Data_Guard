@@ -2,10 +2,15 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 type ClientConfig = {
+  brandName?: string;
+  siteBaseUrl?: string;
   apiBaseUrl: string;
   environment: string;
   supportedLocales: string[];
   selfHostedEnabled: boolean;
+  media?: {
+    installerLoopUrl?: string;
+  };
 };
 
 type ReleaseChannel = {
@@ -57,16 +62,17 @@ const formatBytes = (value: number) => {
   return `${current.toFixed(current >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 };
 
-const buildWindowsInstallerScript = (manifestUrl: string) =>
+const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: string) =>
   [
     "param([switch]$SkipLaunch)",
     "$ErrorActionPreference = 'Stop'",
     "$ProgressPreference = 'Continue'",
     `$manifestUrl = '${manifestUrl}'`,
+    `$clientConfigUrl = '${clientConfigUrl}'`,
     "$installRoot = Join-Path $env:LOCALAPPDATA 'SecureGuard'",
     "$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'SecureGuard Desktop.lnk'",
     "$startMenuDir = Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs\\SecureGuard'",
-    `$musicSource = '${new URL("/installer-audio/moonlight-loop.mpeg", manifestUrl).toString()}'`,
+    "$musicSource = ''",
     "$musicTempFile = Join-Path $env:TEMP 'SecureGuard-Installer-Music.mpeg'",
     "function Start-InstallerMusic {",
     "  param([string]$Source)",
@@ -90,10 +96,15 @@ const buildWindowsInstallerScript = (manifestUrl: string) =>
     "$player = Start-InstallerMusic -Source $musicSource",
     "try {",
     "  Write-Host 'Carregando manifesto publico...'",
+    "  $clientConfig = Invoke-RestMethod -Uri $clientConfigUrl -Method Get",
+    "  if ($clientConfig.media -and $clientConfig.media.installerLoopUrl) {",
+    "    $musicSource = [string]$clientConfig.media.installerLoopUrl",
+    "    $player = Start-InstallerMusic -Source $musicSource",
+    "  }",
     "  $manifest = Invoke-RestMethod -Uri $manifestUrl -Method Get",
     "  if (-not $manifest.windows -or -not $manifest.windows.url) { throw 'Manifesto sem release Windows.' }",
     "  $release = $manifest.windows",
-    "  if ($release.url -match 'secureguard\\.example\\.com') {",
+    "  if ($release.url -match 'secureguard\\.example\\.com' -or $release.url -match 'downloads\\.secureguard\\.app') {",
     "    throw 'O URL publico do executavel Windows ainda nao foi configurado em releases/latest.json.'",
     "  }",
     "  New-Item -ItemType Directory -Path $installRoot -Force | Out-Null",
@@ -212,7 +223,8 @@ const DownloadsPage = () => {
 
   const handleDownloadWindowsInstaller = () => {
     const manifestUrl = `${window.location.origin}/releases/latest.json`;
-    const script = buildWindowsInstallerScript(manifestUrl);
+    const clientConfigUrl = `${window.location.origin}/client-config.json`;
+    const script = buildWindowsInstallerScript(manifestUrl, clientConfigUrl);
     downloadTextFile("Install-SecureGuard.ps1", script);
   };
 
@@ -377,7 +389,8 @@ const PostSignupPage = () => {
 
   const handleDownloadWindowsInstaller = () => {
     const manifestUrl = `${window.location.origin}/releases/latest.json`;
-    const script = buildWindowsInstallerScript(manifestUrl);
+    const clientConfigUrl = `${window.location.origin}/client-config.json`;
+    const script = buildWindowsInstallerScript(manifestUrl, clientConfigUrl);
     downloadTextFile("Install-SecureGuard.ps1", script);
   };
 
