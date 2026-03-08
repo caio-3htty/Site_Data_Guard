@@ -123,6 +123,18 @@ a {
   margin-top: 24px;
 }
 
+.download-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.download-note {
+  margin-top: 16px;
+  font-size: 0.95rem;
+  color: rgba(232, 238, 245, 0.72);
+}
+
 .cta-row {
   display: flex;
   gap: 12px;

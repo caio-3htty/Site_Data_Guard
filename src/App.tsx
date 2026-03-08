@@ -57,6 +57,80 @@ const formatBytes = (value: number) => {
   return `${current.toFixed(current >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 };
 
+const buildWindowsInstallerScript = (manifestUrl: string) =>
+  [
+    "param([switch]$SkipLaunch)",
+    "$ErrorActionPreference = 'Stop'",
+    "$ProgressPreference = 'Continue'",
+    `$manifestUrl = '${manifestUrl}'`,
+    "$installRoot = Join-Path $env:LOCALAPPDATA 'SecureGuard'",
+    "$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'SecureGuard Desktop.lnk'",
+    "$startMenuDir = Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs\\SecureGuard'",
+    "$musicSource = ''",
+    "# Para tocar audio durante a instalacao, informe em $musicSource um arquivo direto/licenciado (.mp3/.wav/.wma).",
+    "function Start-InstallerMusic {",
+    "  param([string]$Source)",
+    "  if ([string]::IsNullOrWhiteSpace($Source)) { return $null }",
+    "  try {",
+    "    Add-Type -AssemblyName presentationCore | Out-Null",
+    "    $player = New-Object System.Windows.Media.MediaPlayer",
+    "    $player.Open([Uri]$Source)",
+    "    $player.Volume = 0.35",
+    "    $player.Play()",
+    "    return $player",
+    "  } catch {",
+    "    Write-Host ('Musica ignorada: ' + $_.Exception.Message)",
+    "    return $null",
+    "  }",
+    "}",
+    "$player = Start-InstallerMusic -Source $musicSource",
+    "try {",
+    "  Write-Host 'Carregando manifesto publico...'",
+    "  $manifest = Invoke-RestMethod -Uri $manifestUrl -Method Get",
+    "  if (-not $manifest.windows -or -not $manifest.windows.url) { throw 'Manifesto sem release Windows.' }",
+    "  $release = $manifest.windows",
+    "  if ($release.url -match 'secureguard\\.example\\.com') {",
+    "    throw 'O URL publico do executavel Windows ainda nao foi configurado em releases/latest.json.'",
+    "  }",
+    "  New-Item -ItemType Directory -Path $installRoot -Force | Out-Null",
+    "  New-Item -ItemType Directory -Path $startMenuDir -Force | Out-Null",
+    "  $tempFile = Join-Path $env:TEMP ('SecureGuard-Desktop-' + $release.version + '.exe')",
+    "  $targetFile = Join-Path $installRoot ('SecureGuard-Desktop-' + $release.version + '.exe')",
+    "  Write-Host ('Baixando SecureGuard Desktop ' + $release.version + '...')",
+    "  Invoke-WebRequest -Uri $release.url -OutFile $tempFile",
+    "  $actualHash = (Get-FileHash -Algorithm SHA256 $tempFile).Hash.ToUpperInvariant()",
+    "  $expectedHash = ([string]$release.sha256).ToUpperInvariant()",
+    "  if ($actualHash -ne $expectedHash) { throw 'Checksum invalido para o executavel baixado.' }",
+    "  Copy-Item $tempFile $targetFile -Force",
+    "  Set-Content -Path (Join-Path $installRoot 'current-version.txt') -Value $release.version -Encoding UTF8",
+    "  $shell = New-Object -ComObject WScript.Shell",
+    "  foreach ($shortcutPath in @($desktopShortcut, (Join-Path $startMenuDir 'SecureGuard Desktop.lnk'))) {",
+    "    $shortcut = $shell.CreateShortcut($shortcutPath)",
+    "    $shortcut.TargetPath = $targetFile",
+    "    $shortcut.WorkingDirectory = $installRoot",
+    "    $shortcut.IconLocation = $targetFile",
+    "    $shortcut.Save()",
+    "  }",
+    "  Get-ChildItem -Path $installRoot -Filter 'SecureGuard-Desktop-*.exe' -ErrorAction SilentlyContinue |",
+    "    Where-Object { $_.FullName -ne $targetFile } |",
+    "    ForEach-Object { try { Remove-Item $_.FullName -Force } catch {} }",
+    "  Write-Host 'Instalacao concluida com sucesso.'",
+    "  if (-not $SkipLaunch) { Start-Process $targetFile }",
+    "} finally {",
+    "  if ($player) { try { $player.Stop() } catch {} }",
+    "}",
+  ].join("\n");
+
+const downloadTextFile = (filename: string, content: string) => {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
 const SiteShell = ({ children }: { children: React.ReactNode }) => (
   <div className="site-shell">
     <header className="site-header">
@@ -126,6 +200,12 @@ const DownloadsPage = () => {
   const [manifest, setManifest] = useState<ReleasesManifest | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const handleDownloadWindowsInstaller = () => {
+    const manifestUrl = `${window.location.origin}/releases/latest.json`;
+    const script = buildWindowsInstallerScript(manifestUrl);
+    downloadTextFile("Install-SecureGuard.ps1", script);
+  };
+
   useEffect(() => {
     loadReleases()
       .then(setManifest)
@@ -149,9 +229,17 @@ const DownloadsPage = () => {
               <p>Versao {manifest.windows.version}</p>
               <p>Tamanho: {formatBytes(manifest.windows.sizeBytes)}</p>
               <p>SHA-256: {manifest.windows.sha256}</p>
-              <a className="primary-button" href={manifest.windows.url} target="_blank" rel="noreferrer">
-                Baixar para Windows
-              </a>
+              <div className="download-actions">
+                <button className="primary-button" type="button" onClick={handleDownloadWindowsInstaller}>
+                  Baixar instalador inteligente
+                </button>
+                <a className="secondary-button" href={manifest.windows.url} target="_blank" rel="noreferrer">
+                  Baixar executavel direto
+                </a>
+              </div>
+              <p className="download-note">
+                O instalador consulta sempre o release mais recente, valida o checksum e atualiza a instalacao local.
+              </p>
             </article>
 
             <article className="download-card">
@@ -274,6 +362,12 @@ const AccountCreatedPage = () => (
 const PostSignupPage = () => {
   const [manifest, setManifest] = useState<ReleasesManifest | null>(null);
 
+  const handleDownloadWindowsInstaller = () => {
+    const manifestUrl = `${window.location.origin}/releases/latest.json`;
+    const script = buildWindowsInstallerScript(manifestUrl);
+    downloadTextFile("Install-SecureGuard.ps1", script);
+  };
+
   useEffect(() => {
     loadReleases().then(setManifest).catch(() => undefined);
   }, []);
@@ -288,14 +382,19 @@ const PostSignupPage = () => {
           <article className="download-card">
             <h2>Windows</h2>
             <p>{manifest ? `Versao ${manifest.windows.version}` : "Release em preparacao"}</p>
-            <a
-              className="primary-button"
-              href={manifest?.windows.url || "/downloads"}
-              target={manifest ? "_blank" : undefined}
-              rel={manifest ? "noreferrer" : undefined}
-            >
-              Baixar para Windows
-            </a>
+            <div className="download-actions">
+              <button className="primary-button" type="button" onClick={handleDownloadWindowsInstaller}>
+                Baixar instalador inteligente
+              </button>
+              <a
+                className="secondary-button"
+                href={manifest?.windows.url || "/downloads"}
+                target={manifest ? "_blank" : undefined}
+                rel={manifest ? "noreferrer" : undefined}
+              >
+                Baixar executavel direto
+              </a>
+            </div>
           </article>
 
           <article className="download-card">
