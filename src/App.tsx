@@ -62,6 +62,27 @@ const formatBytes = (value: number) => {
   return `${current.toFixed(current >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
 };
 
+const formatInteger = (value: number) => new Intl.NumberFormat("pt-BR").format(value);
+
+const ReleaseDetails = ({ release }: { release: ReleaseChannel }) => (
+  <div className="release-details">
+    <div className="release-detail-row">
+      <span className="release-label">Versao</span>
+      <span className="release-value">{release.version}</span>
+    </div>
+    <div className="release-detail-row">
+      <span className="release-label">Tamanho final</span>
+      <span className="release-value">
+        {formatBytes(release.sizeBytes)} ({formatInteger(release.sizeBytes)} bytes)
+      </span>
+    </div>
+    <div className="release-detail-row release-hash">
+      <span className="release-label">SHA-256</span>
+      <code className="release-hash-value">{release.sha256}</code>
+    </div>
+  </div>
+);
+
 const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: string) =>
   [
     "param([switch]$SkipLaunch)",
@@ -248,9 +269,7 @@ const DownloadsPage = () => {
           <div className="download-grid">
             <article className="download-card">
               <h2>Windows</h2>
-              <p>Versao {manifest.windows.version}</p>
-              <p>Tamanho: {formatBytes(manifest.windows.sizeBytes)}</p>
-              <p>SHA-256: {manifest.windows.sha256}</p>
+              <ReleaseDetails release={manifest.windows} />
               <div className="download-actions">
                 <button className="primary-button" type="button" onClick={handleDownloadWindowsInstaller}>
                   Baixar instalador inteligente
@@ -269,9 +288,7 @@ const DownloadsPage = () => {
 
             <article className="download-card">
               <h2>Android</h2>
-              <p>Versao {manifest.android.version}</p>
-              <p>Tamanho: {formatBytes(manifest.android.sizeBytes)}</p>
-              <p>SHA-256: {manifest.android.sha256}</p>
+              <ReleaseDetails release={manifest.android} />
               <a className="primary-button" href={manifest.android.url} target="_blank" rel="noreferrer">
                 Baixar para Android
               </a>
@@ -407,7 +424,7 @@ const PostSignupPage = () => {
         <div className="download-grid">
           <article className="download-card">
             <h2>Windows</h2>
-            <p>{manifest ? `Versao ${manifest.windows.version}` : "Release em preparacao"}</p>
+            {manifest ? <ReleaseDetails release={manifest.windows} /> : <p>Release em preparacao</p>}
             <div className="download-actions">
               <button className="primary-button" type="button" onClick={handleDownloadWindowsInstaller}>
                 Baixar instalador inteligente
@@ -425,7 +442,7 @@ const PostSignupPage = () => {
 
           <article className="download-card">
             <h2>Android</h2>
-            <p>{manifest ? `Versao ${manifest.android.version}` : "Release em preparacao"}</p>
+            {manifest ? <ReleaseDetails release={manifest.android} /> : <p>Release em preparacao</p>}
             <a
               className="primary-button"
               href={manifest?.android.url || "/downloads"}

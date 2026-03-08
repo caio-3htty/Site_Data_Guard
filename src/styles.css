@@ -104,6 +104,11 @@ a {
   padding: 24px;
 }
 
+.download-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .hero-panel ol {
   padding-left: 18px;
   margin: 0;
@@ -127,6 +132,49 @@ a {
   display: grid;
   gap: 12px;
   margin-top: 20px;
+}
+
+.release-details {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.release-detail-row {
+  display: grid;
+  gap: 6px;
+}
+
+.release-label {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(121, 195, 255, 0.85);
+}
+
+.release-value {
+  color: #f2f7fd;
+  font-size: 1.02rem;
+}
+
+.release-hash {
+  padding-top: 4px;
+}
+
+.release-hash-value {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(232, 238, 245, 0.12);
+  color: #d9ecff;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .download-note {
