@@ -1,0 +1,6 @@
+{
+  "apiBaseUrl": "https://api.secureguard.example.com",
+  "environment": "production",
+  "supportedLocales": ["pt-BR", "en", "es"],
+  "selfHostedEnabled": false
+}

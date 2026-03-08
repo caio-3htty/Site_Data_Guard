@@ -1,0 +1,201 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", sans-serif;
+  background: #071423;
+  color: #e8eef5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(46, 155, 255, 0.22), transparent 32%),
+    linear-gradient(180deg, #071423 0%, #0b1f34 100%);
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-shell {
+  min-height: 100vh;
+}
+
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  backdrop-filter: blur(20px);
+  background: rgba(7, 20, 35, 0.78);
+}
+
+.brand {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.site-nav {
+  display: flex;
+  gap: 20px;
+  color: rgba(232, 238, 245, 0.88);
+}
+
+.hero,
+.content-section,
+.feature-grid {
+  width: min(1100px, calc(100vw - 32px));
+  margin: 0 auto;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+  padding: 72px 0 40px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #79c3ff;
+  font-size: 0.82rem;
+}
+
+.hero h1,
+.content-section h1 {
+  font-size: clamp(2rem, 4vw, 4rem);
+  line-height: 1.04;
+  margin: 12px 0 16px;
+}
+
+.hero-copy,
+.content-section p {
+  color: rgba(232, 238, 245, 0.82);
+  line-height: 1.6;
+}
+
+.hero-panel,
+.feature-card,
+.download-card,
+.status-card,
+.account-form,
+.content-section {
+  background: rgba(11, 29, 49, 0.78);
+  border: 1px solid rgba(121, 195, 255, 0.15);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+}
+
+.hero-panel,
+.download-card,
+.feature-card,
+.status-card,
+.content-section {
+  padding: 24px;
+}
+
+.hero-panel ol {
+  padding-left: 18px;
+  margin: 0;
+  line-height: 1.8;
+}
+
+.feature-grid,
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  padding-bottom: 56px;
+}
+
+.download-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 24px;
+}
+
+.cta-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.primary-button,
+.secondary-button,
+.account-form button {
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.primary-button,
+.account-form button {
+  background: linear-gradient(135deg, #2e9bff 0%, #64d2ff 100%);
+  color: #04111d;
+}
+
+.secondary-button {
+  background: transparent;
+  color: #e8eef5;
+  border: 1px solid rgba(232, 238, 245, 0.2);
+}
+
+.account-form {
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+  max-width: 560px;
+}
+
+.account-form label {
+  display: grid;
+  gap: 8px;
+  color: rgba(232, 238, 245, 0.9);
+}
+
+.account-form input {
+  width: 100%;
+  border: 1px solid rgba(232, 238, 245, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.status-card.error {
+  border-color: rgba(255, 105, 105, 0.4);
+  color: #ffd0d0;
+}
+
+@media (max-width: 900px) {
+  .hero,
+  .feature-grid,
+  .download-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .site-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .site-nav {
+    flex-wrap: wrap;
+  }
+}
