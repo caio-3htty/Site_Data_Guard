@@ -3,7 +3,6 @@ import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 type ClientConfig = {
   brandName?: string;
-  siteBaseUrl?: string;
   apiBaseUrl: string;
   environment: string;
   supportedLocales: string[];

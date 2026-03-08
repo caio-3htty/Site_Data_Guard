@@ -1,13 +1,13 @@
 {
   "windows": {
     "version": "0.1.0",
-    "url": "https://downloads.secureguard.app/windows/SecureGuard-Desktop-0.1.0.exe",
+    "url": "https://media.githubusercontent.com/media/caio-3htty/Site_Data_Guard/assets/public/downloads/windows/SecureGuard-Desktop-0.1.0.exe",
     "sha256": "CEB7A8BEABD143DA569166E50466B0EB40080F9343E68A3B429AC157DEF6B8CA",
     "sizeBytes": 109705735
   },
   "android": {
     "version": "0.1.0",
-    "url": "https://downloads.secureguard.app/android/SecureGuard-Android-debug.apk",
+    "url": "https://media.githubusercontent.com/media/caio-3htty/Site_Data_Guard/assets/public/downloads/android/SecureGuard-Android-debug.apk",
     "sha256": "FB9A3C0C4C72705B5B2874A12B3B86F999A084630913CB7ED82E68F36FA9E925",
     "sizeBytes": 17760019
   },

@@ -20,10 +20,14 @@ Site publico do SecureGuard para deploy no Vercel.
 - distribuir os binarios oficiais de Windows e Android
 - expor o `client-config.json` consumido pelos apps em producao
 
-## Publicacao esperada
+## Publicacao atual
 - deploy no Vercel
-- binarios publicados em storage externo versionado, como Cloudflare R2
-- `releases/latest.json` apontando para os URLs reais do storage
+- binarios publicados em um branch de assets do GitHub, servidos por CDN publica
+- `releases/latest.json` apontando para URLs reais de download dos releases
+
+## Publicacao futura
+- migrar os binarios para storage externo dedicado, como Cloudflare R2
+- trocar os URLs de download para `downloads.secureguard.app`
 
 ## Variaveis e pontos de integracao
 - `public/client-config.json`: endpoint padrao da API publica consumida pelos apps

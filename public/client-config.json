@@ -1,6 +1,5 @@
 {
   "brandName": "SecureGuard",
-  "siteBaseUrl": "https://secureguard.app",
   "apiBaseUrl": "https://api.secureguard.app",
   "environment": "production",
   "supportedLocales": ["pt-BR", "en", "es"],
