@@ -191,7 +191,7 @@ const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: strin
     "  $manifest = Invoke-RestMethod -Uri $manifestUrl -Method Get",
     "  if (-not $manifest.windows -or -not $manifest.windows.url) { throw 'Manifesto sem release Windows.' }",
     "  $release = $manifest.windows",
-    "  if ($release.url -match 'secureguard\\.example\\.com' -or $release.url -match 'downloads\\.secureguard\\.app') {",
+    "  if ($release.url -match 'secureguard\\.example\\.com') {",
     "    throw 'O URL publico do executavel Windows ainda nao foi configurado em releases/latest.json.'",
     "  }",
     "  New-Item -ItemType Directory -Path $installRoot -Force | Out-Null",

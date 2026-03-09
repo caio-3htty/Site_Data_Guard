@@ -3,8 +3,8 @@
   "apiBaseUrl": "https://api.secureguard.app",
   "environment": "production",
   "supportedLocales": ["pt-BR", "en", "es"],
-  "selfHostedEnabled": false,
+  "selfHostedEnabled": true,
   "media": {
-    "installerLoopUrl": "https://cdn.jsdelivr.net/gh/caio-3htty/Site_Data_Guard@assets/public/installer-audio/moonlight-loop.mpeg"
+    "installerLoopUrl": "https://downloads.secureguard.app/media/installer-loop"
   }
 }

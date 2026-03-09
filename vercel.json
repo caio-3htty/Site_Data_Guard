@@ -1,5 +1,22 @@
 {
   "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/windows/latest.exe",
+      "destination": "https://media.githubusercontent.com/media/caio-3htty/Site_Data_Guard/assets/public/downloads/windows/SecureGuard-Desktop-0.1.0.exe",
+      "permanent": false
+    },
+    {
+      "source": "/android/latest.apk",
+      "destination": "https://media.githubusercontent.com/media/caio-3htty/Site_Data_Guard/assets/public/downloads/android/SecureGuard-Android-debug.apk",
+      "permanent": false
+    },
+    {
+      "source": "/media/installer-loop",
+      "destination": "https://cdn.jsdelivr.net/gh/caio-3htty/Site_Data_Guard@assets/public/installer-audio/moonlight-loop.mpeg",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
