@@ -1,10 +1,12 @@
 {
   "brandName": "SecureGuard",
+  "siteBaseUrl": "https://skill-deploy-f32ebr8ra5.vercel.app",
   "apiBaseUrl": "https://api.secureguard.app",
-  "environment": "production",
+  "environment": "temporary-vercel",
+  "publicMode": "temporary-vercel",
   "supportedLocales": ["pt-BR", "en", "es"],
   "selfHostedEnabled": true,
   "media": {
-    "installerLoopUrl": "https://downloads.secureguard.app/media/installer-loop"
+    "installerLoopUrl": "https://skill-deploy-f32ebr8ra5.vercel.app/media/installer-loop"
   }
 }

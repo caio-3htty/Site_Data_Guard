@@ -21,9 +21,10 @@ Site publico do SecureGuard para deploy no Vercel.
 - expor o `client-config.json` consumido pelos apps em producao
 
 ## Publicacao atual
-- deploy no Vercel
-- `downloads.secureguard.app` redirecionando para os binarios publicados no branch de assets do GitHub
-- `releases/latest.json` e `client-config.json` servidos pelo dominio final do site
+- deploy temporario no Vercel em `https://skill-deploy-f32ebr8ra5.vercel.app`
+- os downloads publicos usam o proprio host temporario do Vercel
+- `releases/latest.json` e `client-config.json` servidos por esse host enquanto o dominio final nao e comprado
+- o modo temporario deve ser aberto de preferencia pelo link/QR gerado no `SecureGuard Server`, para levar `?server=` e configurar os apps automaticamente
 
 ## Evolucao futura
 - migrar os binarios para storage externo dedicado, como Cloudflare R2, sem mudar os URLs publicos

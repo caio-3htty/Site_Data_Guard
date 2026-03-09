@@ -7,6 +7,8 @@ type ClientConfig = {
   environment: string;
   supportedLocales: string[];
   selfHostedEnabled: boolean;
+  siteBaseUrl?: string;
+  publicMode?: string;
   media?: {
     installerLoopUrl?: string;
   };
@@ -67,6 +69,38 @@ const resolveServerOverride = (search: string) => {
 
 const buildAndroidConnectUrl = (serverBaseUrl: string) =>
   `secureguard://connect?server=${encodeURIComponent(serverBaseUrl)}`;
+
+const isTemporaryPublicMode = (config?: ResolvedClientConfig | null) => {
+  const currentHost = window.location.hostname.toLowerCase();
+  if (currentHost.endsWith(".vercel.app")) {
+    return true;
+  }
+
+  if (!config) {
+    return false;
+  }
+
+  if (config.publicMode === "temporary-vercel" || config.environment === "temporary-vercel") {
+    return true;
+  }
+
+  try {
+    if (config.siteBaseUrl) {
+      return new URL(config.siteBaseUrl).hostname.toLowerCase().endsWith(".vercel.app");
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+};
+
+const buildSearchWithServer = (search: string, serverBaseUrl: string) => {
+  const params = new URLSearchParams(search);
+  params.set("server", serverBaseUrl);
+  const nextSearch = params.toString();
+  return nextSearch ? `?${nextSearch}` : "";
+};
 
 const loadClientConfig = async (search = window.location.search): Promise<ResolvedClientConfig> => {
   const response = await fetch("/client-config.json", { cache: "no-store" });
@@ -152,6 +186,23 @@ const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: strin
     "$bootstrapConfigFile = Join-Path $installRoot 'bootstrap-config.json'",
     "$musicSource = ''",
     "$musicTempFile = Join-Path $env:TEMP 'SecureGuard-Installer-Music.mpeg'",
+    "function Resolve-ServerBaseUrl {",
+    "  param(",
+    "    [string]$RawValue,",
+    "    [bool]$AllowHttp = $false",
+    "  )",
+    "  $trimmed = ([string]$RawValue).Trim().TrimEnd('/')",
+    "  if ([string]::IsNullOrWhiteSpace($trimmed)) { return '' }",
+    "  if ($trimmed -notmatch '^https?://') {",
+    "    $trimmed = ($(if ($AllowHttp) { 'http://' } else { 'https://' })) + $trimmed",
+    "  }",
+    "  $uri = [System.Uri]$trimmed",
+    "  if (-not $uri.Host) { throw 'Endereco do servidor invalido.' }",
+    "  if (-not $AllowHttp -and $uri.Scheme -ne 'https') { throw 'Use um endereco HTTPS para o servidor principal.' }",
+    "  $defaultPort = if ($uri.Scheme -eq 'https') { 443 } else { 80 }",
+    "  $portSegment = if ($uri.Port -gt 0 -and $uri.Port -ne $defaultPort) { ':' + $uri.Port } else { '' }",
+    "  return ($uri.Scheme + '://' + $uri.Host + $portSegment)",
+    "}",
     "function Start-InstallerMusic {",
     "  param([string]$Source)",
     "  if ([string]::IsNullOrWhiteSpace($Source)) { return $null }",
@@ -175,13 +226,26 @@ const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: strin
     "try {",
     "  Write-Host 'Carregando manifesto publico...'",
     "  $clientConfig = Invoke-RestMethod -Uri $clientConfigUrl -Method Get",
+    "  $effectiveServerUrl = ''",
     "  if ($clientConfig.media -and $clientConfig.media.installerLoopUrl) {",
     "    $musicSource = [string]$clientConfig.media.installerLoopUrl",
     "    $player = Start-InstallerMusic -Source $musicSource",
     "  }",
     "  if (-not [string]::IsNullOrWhiteSpace($serverOverride)) {",
+    "    $effectiveServerUrl = Resolve-ServerBaseUrl -RawValue $serverOverride",
+    "  } elseif ($clientConfig.apiBaseUrl -and [string]$clientConfig.apiBaseUrl -notmatch 'api\\.secureguard\\.app') {",
+    "    $effectiveServerUrl = Resolve-ServerBaseUrl -RawValue ([string]$clientConfig.apiBaseUrl)",
+    "  } elseif ([string]$clientConfig.environment -eq 'temporary-vercel' -or $clientConfigUrl -match '\\.vercel\\.app') {",
+    "    Write-Host 'Modo temporario detectado. Informe a URL HTTPS do seu servidor principal para configurar o app.'",
+    "    $manualServer = Read-Host 'URL HTTPS do servidor principal'",
+    "    $effectiveServerUrl = Resolve-ServerBaseUrl -RawValue $manualServer",
+    "    if ([string]::IsNullOrWhiteSpace($effectiveServerUrl)) {",
+    "      throw 'A URL do servidor principal e obrigatoria neste modo temporario.'",
+    "    }",
+    "  }",
+    "  if (-not [string]::IsNullOrWhiteSpace($effectiveServerUrl)) {",
     "    $bootstrapConfig = @{",
-    "      apiBaseUrl = $serverOverride",
+    "      apiBaseUrl = $effectiveServerUrl",
     "      environment = 'self-hosted'",
     "      supportedLocales = @('pt-BR', 'en', 'es')",
     "      selfHostedEnabled = $true",
@@ -259,6 +323,23 @@ const SelfHostedNotice = ({ serverBaseUrl }: { serverBaseUrl: string }) => (
   </div>
 );
 
+const TemporaryVercelNotice = ({ includeInputHint = false }: { includeInputHint?: boolean }) => (
+  <div className="status-card warning">
+    <strong>Modo temporario em dominio do Vercel.</strong>
+    <p>
+      Enquanto o dominio final nao for comprado, use o link ou o QR gerado pelo SecureGuard Server para abrir este
+      site ja com o parametro <code>?server=</code>. Assim o cadastro e os apps ficam apontados para a maquina
+      principal automaticamente.
+    </p>
+    {includeInputHint ? (
+      <p>
+        Se voce abriu o site direto pelo <code>.vercel.app</code>, cole a URL HTTPS publica do servidor principal no
+        campo abaixo antes de criar a conta.
+      </p>
+    ) : null}
+  </div>
+);
+
 const SiteShell = ({ children }: { children: React.ReactNode }) => (
   <SiteShellInner>{children}</SiteShellInner>
 );
@@ -293,6 +374,7 @@ const HomePage = () => {
   return (
     <SiteShell>
       {serverOverride ? <SelfHostedNotice serverBaseUrl={serverOverride} /> : null}
+      {!serverOverride && isTemporaryPublicMode() ? <TemporaryVercelNotice /> : null}
 
       <section className="hero">
         <div>
@@ -364,6 +446,7 @@ const DownloadsPage = () => {
   }, [location.search]);
 
   const serverOverride = clientConfig?.serverOverride;
+  const temporaryPublicMode = isTemporaryPublicMode(clientConfig);
 
   return (
     <SiteShell>
@@ -372,6 +455,7 @@ const DownloadsPage = () => {
         <p>Baixe a versao atual dos apps e valide o checksum antes de distribuir para outras pessoas.</p>
 
         {serverOverride ? <SelfHostedNotice serverBaseUrl={serverOverride} /> : null}
+        {!serverOverride && temporaryPublicMode ? <TemporaryVercelNotice /> : null}
 
         {error ? <div className="status-card error">{error}</div> : null}
 
@@ -400,6 +484,11 @@ const DownloadsPage = () => {
                 <p className="download-note">
                   Esta copia do instalador vai deixar o app Windows apontado automaticamente para o servidor principal
                   informado acima.
+                </p>
+              ) : temporaryPublicMode ? (
+                <p className="download-note">
+                  Neste modo temporario, abra esta pagina pelo link do SecureGuard Server ou informe a URL do servidor
+                  principal quando o instalador solicitar.
                 </p>
               ) : null}
             </article>
@@ -435,11 +524,13 @@ const CreateAccountPage = () => {
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualServerBaseUrl, setManualServerBaseUrl] = useState("");
 
   useEffect(() => {
     loadClientConfig(location.search)
       .then((config) => {
         setClientConfig(config);
+        setManualServerBaseUrl(config.serverOverride || "");
         setIsLoadingConfig(false);
       })
       .catch((loadError) => {
@@ -448,12 +539,42 @@ const CreateAccountPage = () => {
       });
   }, [location.search]);
 
-  const baseUrl = useMemo(() => clientConfig?.apiBaseUrl?.replace(/\/$/, "") ?? "", [clientConfig]);
+  const temporaryPublicMode = isTemporaryPublicMode(clientConfig);
+  const normalizedManualServer = useMemo(() => {
+    if (!manualServerBaseUrl.trim()) {
+      return "";
+    }
+
+    try {
+      return normalizeBaseUrl(manualServerBaseUrl);
+    } catch {
+      return "";
+    }
+  }, [manualServerBaseUrl]);
+
+  const baseUrl = useMemo(() => {
+    if (clientConfig?.serverOverride) {
+      return clientConfig.serverOverride.replace(/\/$/, "");
+    }
+
+    if (normalizedManualServer) {
+      return normalizedManualServer;
+    }
+
+    return clientConfig?.apiBaseUrl?.replace(/\/$/, "") ?? "";
+  }, [clientConfig, normalizedManualServer]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!baseUrl) {
       setError("A API publica ainda nao esta configurada.");
+      return;
+    }
+
+    if (temporaryPublicMode && !clientConfig?.serverOverride && !normalizedManualServer) {
+      setError(
+        "Cole a URL HTTPS publica do seu servidor principal ou abra este site pelo link/QR gerado no SecureGuard Server."
+      );
       return;
     }
 
@@ -483,9 +604,14 @@ const CreateAccountPage = () => {
         throw new Error(responseBody?.details || responseBody?.error || responseBody?.message || "Falha ao criar conta.");
       }
 
+      const successSearch =
+        clientConfig?.serverOverride || !normalizedManualServer
+          ? location.search
+          : buildSearchWithServer(location.search, normalizedManualServer);
+
       navigate({
         pathname: "/criar-conta/sucesso",
-        search: location.search,
+        search: successSearch,
       });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Falha ao criar conta.");
@@ -500,11 +626,25 @@ const CreateAccountPage = () => {
         <h1>Criar conta</h1>
         <p>O cadastro abaixo cria a conta real na plataforma publica do SecureGuard.</p>
         {clientConfig?.serverOverride ? <SelfHostedNotice serverBaseUrl={clientConfig.serverOverride} /> : null}
+        {!clientConfig?.serverOverride && temporaryPublicMode ? <TemporaryVercelNotice includeInputHint /> : null}
 
         {isLoadingConfig ? <div className="status-card">Carregando configuracao da API...</div> : null}
         {error ? <div className="status-card error">{error}</div> : null}
 
         <form className="account-form" onSubmit={handleSubmit}>
+          {temporaryPublicMode && !clientConfig?.serverOverride ? (
+            <label>
+              URL HTTPS do servidor principal
+              <input
+                name="serverBaseUrl"
+                type="url"
+                inputMode="url"
+                placeholder="https://seu-servidor.trycloudflare.com"
+                value={manualServerBaseUrl}
+                onChange={(event) => setManualServerBaseUrl(event.currentTarget.value)}
+              />
+            </label>
+          ) : null}
           <label>
             Nome
             <input name="name" type="text" required />
@@ -556,12 +696,15 @@ const PostSignupPage = () => {
       .catch(() => undefined);
   }, [location.search]);
 
+  const temporaryPublicMode = isTemporaryPublicMode(clientConfig);
+
   return (
     <SiteShell>
       <section className="content-section">
         <h1>Conta criada com sucesso</h1>
         <p>Agora baixe o app oficial e entre usando a mesma conta que voce acabou de criar.</p>
         {clientConfig?.serverOverride ? <SelfHostedNotice serverBaseUrl={clientConfig.serverOverride} /> : null}
+        {!clientConfig?.serverOverride && temporaryPublicMode ? <TemporaryVercelNotice /> : null}
 
         <div className="download-grid">
           <article className="download-card">

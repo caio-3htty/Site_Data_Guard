@@ -1,13 +1,13 @@
 {
   "windows": {
     "version": "0.1.0",
-    "url": "https://downloads.secureguard.app/windows/latest.exe",
+    "url": "https://skill-deploy-f32ebr8ra5.vercel.app/windows/latest.exe",
     "sha256": "CCAE9859025B873761F9C90A2BF7F203EA189B53D2544183A51CB04C88168825",
     "sizeBytes": 109702126
   },
   "android": {
     "version": "0.1.0",
-    "url": "https://downloads.secureguard.app/android/latest.apk",
+    "url": "https://skill-deploy-f32ebr8ra5.vercel.app/android/latest.apk",
     "sha256": "F2978C650AA0479EE9D3AFB1B2141AD55D4EAC654866CEDBCFC47D63E598994A",
     "sizeBytes": 17766149
   },
