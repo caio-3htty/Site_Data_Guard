@@ -2,14 +2,14 @@
   "windows": {
     "version": "0.1.0",
     "url": "https://media.githubusercontent.com/media/caio-3htty/Site_Data_Guard/assets/public/downloads/windows/SecureGuard-Desktop-0.1.0.exe",
-    "sha256": "CEB7A8BEABD143DA569166E50466B0EB40080F9343E68A3B429AC157DEF6B8CA",
-    "sizeBytes": 109705735
+    "sha256": "CCAE9859025B873761F9C90A2BF7F203EA189B53D2544183A51CB04C88168825",
+    "sizeBytes": 109702126
   },
   "android": {
     "version": "0.1.0",
     "url": "https://media.githubusercontent.com/media/caio-3htty/Site_Data_Guard/assets/public/downloads/android/SecureGuard-Android-debug.apk",
-    "sha256": "FB9A3C0C4C72705B5B2874A12B3B86F999A084630913CB7ED82E68F36FA9E925",
-    "sizeBytes": 17760019
+    "sha256": "F2978C650AA0479EE9D3AFB1B2141AD55D4EAC654866CEDBCFC47D63E598994A",
+    "sizeBytes": 17766149
   },
   "minimumSupportedVersions": {
     "windows": "0.1.0",
