@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 type ClientConfig = {
   brandName?: string;
@@ -10,6 +10,10 @@ type ClientConfig = {
   media?: {
     installerLoopUrl?: string;
   };
+};
+
+type ResolvedClientConfig = ClientConfig & {
+  serverOverride?: string | null;
 };
 
 type ReleaseChannel = {
@@ -28,13 +32,65 @@ type ReleasesManifest = {
   };
 };
 
-const loadClientConfig = async (): Promise<ClientConfig> => {
+const normalizeBaseUrl = (rawValue: string) => {
+  const trimmed = rawValue.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    throw new Error("Endereco do servidor vazio.");
+  }
+
+  const withProtocol =
+    trimmed.startsWith("http://") || trimmed.startsWith("https://") ? trimmed : `https://${trimmed}`;
+  const parsed = new URL(withProtocol);
+  if (!parsed.hostname) {
+    throw new Error("Endereco do servidor invalido.");
+  }
+
+  parsed.pathname = "";
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString().replace(/\/$/, "");
+};
+
+const resolveServerOverride = (search: string) => {
+  const query = new URLSearchParams(search);
+  const candidate = query.get("server") || query.get("api") || "";
+  if (!candidate.trim()) {
+    return null;
+  }
+
+  try {
+    return normalizeBaseUrl(candidate);
+  } catch {
+    return null;
+  }
+};
+
+const buildAndroidConnectUrl = (serverBaseUrl: string) =>
+  `secureguard://connect?server=${encodeURIComponent(serverBaseUrl)}`;
+
+const loadClientConfig = async (search = window.location.search): Promise<ResolvedClientConfig> => {
   const response = await fetch("/client-config.json", { cache: "no-store" });
   if (!response.ok) {
     throw new Error("Nao foi possivel carregar a configuracao publica.");
   }
 
-  return response.json();
+  const payload = (await response.json()) as ClientConfig;
+  const serverOverride = resolveServerOverride(search);
+
+  if (!serverOverride) {
+    return {
+      ...payload,
+      serverOverride: null,
+    };
+  }
+
+  return {
+    ...payload,
+    apiBaseUrl: serverOverride,
+    environment: "self-hosted",
+    selfHostedEnabled: true,
+    serverOverride,
+  };
 };
 
 const loadReleases = async (): Promise<ReleasesManifest> => {
@@ -82,16 +138,18 @@ const ReleaseDetails = ({ release }: { release: ReleaseChannel }) => (
   </div>
 );
 
-const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: string) =>
+const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: string, serverOverride?: string | null) =>
   [
     "param([switch]$SkipLaunch)",
     "$ErrorActionPreference = 'Stop'",
     "$ProgressPreference = 'Continue'",
     `$manifestUrl = '${manifestUrl}'`,
     `$clientConfigUrl = '${clientConfigUrl}'`,
+    `$serverOverride = '${serverOverride ?? ""}'`,
     "$installRoot = Join-Path $env:LOCALAPPDATA 'SecureGuard'",
     "$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'SecureGuard Desktop.lnk'",
     "$startMenuDir = Join-Path $env:APPDATA 'Microsoft\\Windows\\Start Menu\\Programs\\SecureGuard'",
+    "$bootstrapConfigFile = Join-Path $installRoot 'bootstrap-config.json'",
     "$musicSource = ''",
     "$musicTempFile = Join-Path $env:TEMP 'SecureGuard-Installer-Music.mpeg'",
     "function Start-InstallerMusic {",
@@ -120,6 +178,15 @@ const buildWindowsInstallerScript = (manifestUrl: string, clientConfigUrl: strin
     "  if ($clientConfig.media -and $clientConfig.media.installerLoopUrl) {",
     "    $musicSource = [string]$clientConfig.media.installerLoopUrl",
     "    $player = Start-InstallerMusic -Source $musicSource",
+    "  }",
+    "  if (-not [string]::IsNullOrWhiteSpace($serverOverride)) {",
+    "    $bootstrapConfig = @{",
+    "      apiBaseUrl = $serverOverride",
+    "      environment = 'self-hosted'",
+    "      supportedLocales = @('pt-BR', 'en', 'es')",
+    "      selfHostedEnabled = $true",
+    "    } | ConvertTo-Json -Depth 4",
+    "    Set-Content -Path $bootstrapConfigFile -Value $bootstrapConfig -Encoding UTF8",
     "  }",
     "  $manifest = Invoke-RestMethod -Uri $manifestUrl -Method Get",
     "  if (-not $manifest.windows -or -not $manifest.windows.url) { throw 'Manifesto sem release Windows.' }",
@@ -172,93 +239,139 @@ const downloadTextFile = (filename: string, content: string) => {
   URL.revokeObjectURL(url);
 };
 
-const SiteShell = ({ children }: { children: React.ReactNode }) => (
-  <div className="site-shell">
-    <header className="site-header">
-      <Link className="brand" to="/">
-        SecureGuard
-      </Link>
-      <nav className="site-nav">
-        <Link to="/">Produto</Link>
-        <Link to="/downloads">Downloads</Link>
-        <Link to="/criar-conta">Criar conta</Link>
-        <Link to="/privacidade">Privacidade</Link>
-        <Link to="/termos">Termos</Link>
-      </nav>
-    </header>
-    <main>{children}</main>
+const useSearchAwarePath = () => {
+  const location = useLocation();
+
+  return (pathname: string) => ({
+    pathname,
+    search: location.search,
+  });
+};
+
+const SelfHostedNotice = ({ serverBaseUrl }: { serverBaseUrl: string }) => (
+  <div className="self-hosted-banner">
+    <p className="self-hosted-eyebrow">Servidor principal conectado</p>
+    <h2>Este acesso esta vinculado ao seu servidor SecureGuard local.</h2>
+    <p>
+      O site, o cadastro e os links de configuracao dos apps vao usar automaticamente este endereco externo:
+    </p>
+    <code className="self-hosted-code">{serverBaseUrl}</code>
   </div>
 );
 
-const HomePage = () => (
-  <SiteShell>
-    <section className="hero">
-      <div>
-        <p className="eyebrow">Protecao digital para familias</p>
-        <h1>SecureGuard centraliza cadastro, alerta e distribuicao dos apps em uma unica superficie publica.</h1>
-        <p className="hero-copy">
-          O site apresenta o produto, cria a conta real na plataforma e entrega os aplicativos de Windows e Android
-          sem depender de rede local.
-        </p>
-        <div className="cta-row">
-          <Link className="primary-button" to="/criar-conta">
-            Criar conta
-          </Link>
-          <Link className="secondary-button" to="/downloads">
-            Baixar apps
-          </Link>
-        </div>
-      </div>
-      <div className="hero-panel">
-        <h2>Como funciona</h2>
-        <ol>
-          <li>Crie sua conta no site publico.</li>
-          <li>Baixe o app para Android ou Windows.</li>
-          <li>Entre com a mesma conta no app.</li>
-          <li>Adicione familiares, dispositivos e acompanhe alertas.</li>
-        </ol>
-      </div>
-    </section>
-
-    <section className="feature-grid">
-      <article className="feature-card">
-        <h3>Cadastro centralizado</h3>
-        <p>O usuario cria a conta pelo site e ja recebe o caminho correto para os apps oficiais.</p>
-      </article>
-      <article className="feature-card">
-        <h3>Downloads versionados</h3>
-        <p>Windows e Android ficam publicados com checksum, versao minima e manifestos publicos.</p>
-      </article>
-      <article className="feature-card">
-        <h3>Mesma API publica</h3>
-        <p>Os apps deixam de depender da LAN e passam a consumir um endpoint HTTPS unico em cloud.</p>
-      </article>
-    </section>
-  </SiteShell>
+const SiteShell = ({ children }: { children: React.ReactNode }) => (
+  <SiteShellInner>{children}</SiteShellInner>
 );
+
+const SiteShellInner = ({ children }: { children: React.ReactNode }) => {
+  const buildPath = useSearchAwarePath();
+
+  return (
+    <div className="site-shell">
+      <header className="site-header">
+        <Link className="brand" to={buildPath("/")}>
+        SecureGuard
+        </Link>
+        <nav className="site-nav">
+          <Link to={buildPath("/")}>Produto</Link>
+          <Link to={buildPath("/downloads")}>Downloads</Link>
+          <Link to={buildPath("/criar-conta")}>Criar conta</Link>
+          <Link to={buildPath("/privacidade")}>Privacidade</Link>
+          <Link to={buildPath("/termos")}>Termos</Link>
+        </nav>
+      </header>
+      <main>{children}</main>
+    </div>
+  );
+};
+
+const HomePage = () => {
+  const location = useLocation();
+  const buildPath = useSearchAwarePath();
+  const serverOverride = useMemo(() => resolveServerOverride(location.search), [location.search]);
+
+  return (
+    <SiteShell>
+      {serverOverride ? <SelfHostedNotice serverBaseUrl={serverOverride} /> : null}
+
+      <section className="hero">
+        <div>
+          <p className="eyebrow">Protecao digital para familias</p>
+          <h1>SecureGuard centraliza cadastro, alerta e distribuicao dos apps em uma unica superficie publica.</h1>
+          <p className="hero-copy">
+            O site apresenta o produto, cria a conta real na plataforma e entrega os aplicativos de Windows e Android
+            sem depender de rede local.
+          </p>
+          <div className="cta-row">
+            <Link className="primary-button" to={buildPath("/criar-conta")}>
+              Criar conta
+            </Link>
+            <Link className="secondary-button" to={buildPath("/downloads")}>
+              Baixar apps
+            </Link>
+          </div>
+        </div>
+        <div className="hero-panel">
+          <h2>Como funciona</h2>
+          <ol>
+            <li>Crie sua conta no site publico.</li>
+            <li>Baixe o app para Android ou Windows.</li>
+            <li>Entre com a mesma conta no app.</li>
+            <li>Adicione familiares, dispositivos e acompanhe alertas.</li>
+          </ol>
+        </div>
+      </section>
+
+      <section className="feature-grid">
+        <article className="feature-card">
+          <h3>Cadastro centralizado</h3>
+          <p>O usuario cria a conta pelo site e ja recebe o caminho correto para os apps oficiais.</p>
+        </article>
+        <article className="feature-card">
+          <h3>Downloads versionados</h3>
+          <p>Windows e Android ficam publicados com checksum, versao minima e manifestos publicos.</p>
+        </article>
+        <article className="feature-card">
+          <h3>Mesma API publica</h3>
+          <p>Os apps deixam de depender da LAN e passam a consumir um endpoint HTTPS unico em cloud.</p>
+        </article>
+      </section>
+    </SiteShell>
+  );
+};
 
 const DownloadsPage = () => {
   const [manifest, setManifest] = useState<ReleasesManifest | null>(null);
+  const [clientConfig, setClientConfig] = useState<ResolvedClientConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+  const buildPath = useSearchAwarePath();
 
   const handleDownloadWindowsInstaller = () => {
     const manifestUrl = `${window.location.origin}/releases/latest.json`;
     const clientConfigUrl = `${window.location.origin}/client-config.json`;
-    const script = buildWindowsInstallerScript(manifestUrl, clientConfigUrl);
+    const script = buildWindowsInstallerScript(manifestUrl, clientConfigUrl, clientConfig?.serverOverride);
     downloadTextFile("Install-SecureGuard.ps1", script);
   };
 
   useEffect(() => {
-    loadReleases()
-      .then(setManifest)
+    Promise.all([loadReleases(), loadClientConfig(location.search)])
+      .then(([nextManifest, nextConfig]) => {
+        setManifest(nextManifest);
+        setClientConfig(nextConfig);
+      })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Falha ao carregar releases."));
-  }, []);
+  }, [location.search]);
+
+  const serverOverride = clientConfig?.serverOverride;
 
   return (
     <SiteShell>
       <section className="content-section">
         <h1>Downloads oficiais</h1>
         <p>Baixe a versao atual dos apps e valide o checksum antes de distribuir para outras pessoas.</p>
+
+        {serverOverride ? <SelfHostedNotice serverBaseUrl={serverOverride} /> : null}
 
         {error ? <div className="status-card error">{error}</div> : null}
 
@@ -283,6 +396,12 @@ const DownloadsPage = () => {
               <p className="download-note">
                 Durante a instalacao, o script toca em loop o audio configurado no site enquanto baixa e prepara o app.
               </p>
+              {serverOverride ? (
+                <p className="download-note">
+                  Esta copia do instalador vai deixar o app Windows apontado automaticamente para o servidor principal
+                  informado acima.
+                </p>
+              ) : null}
             </article>
 
             <article className="download-card">
@@ -291,6 +410,16 @@ const DownloadsPage = () => {
               <a className="primary-button" href={manifest.android.url} target="_blank" rel="noreferrer">
                 Baixar para Android
               </a>
+              {serverOverride ? (
+                <div className="download-actions">
+                  <a className="secondary-button" href={buildAndroidConnectUrl(serverOverride)}>
+                    Abrir app Android ja configurado
+                  </a>
+                  <Link className="secondary-button" to={buildPath("/criar-conta/sucesso")}>
+                    Ver passo a passo do Android
+                  </Link>
+                </div>
+              ) : null}
             </article>
           </div>
         )}
@@ -301,13 +430,14 @@ const DownloadsPage = () => {
 
 const CreateAccountPage = () => {
   const navigate = useNavigate();
-  const [clientConfig, setClientConfig] = useState<ClientConfig | null>(null);
+  const location = useLocation();
+  const [clientConfig, setClientConfig] = useState<ResolvedClientConfig | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadClientConfig()
+    loadClientConfig(location.search)
       .then((config) => {
         setClientConfig(config);
         setIsLoadingConfig(false);
@@ -316,7 +446,7 @@ const CreateAccountPage = () => {
         setError(loadError instanceof Error ? loadError.message : "Falha ao carregar configuracao publica.");
         setIsLoadingConfig(false);
       });
-  }, []);
+  }, [location.search]);
 
   const baseUrl = useMemo(() => clientConfig?.apiBaseUrl?.replace(/\/$/, "") ?? "", [clientConfig]);
 
@@ -353,7 +483,10 @@ const CreateAccountPage = () => {
         throw new Error(responseBody?.details || responseBody?.error || responseBody?.message || "Falha ao criar conta.");
       }
 
-      navigate("/criar-conta/sucesso");
+      navigate({
+        pathname: "/criar-conta/sucesso",
+        search: location.search,
+      });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Falha ao criar conta.");
     } finally {
@@ -366,6 +499,7 @@ const CreateAccountPage = () => {
       <section className="content-section">
         <h1>Criar conta</h1>
         <p>O cadastro abaixo cria a conta real na plataforma publica do SecureGuard.</p>
+        {clientConfig?.serverOverride ? <SelfHostedNotice serverBaseUrl={clientConfig.serverOverride} /> : null}
 
         {isLoadingConfig ? <div className="status-card">Carregando configuracao da API...</div> : null}
         {error ? <div className="status-card error">{error}</div> : null}
@@ -402,23 +536,32 @@ const AccountCreatedPage = () => (
 
 const PostSignupPage = () => {
   const [manifest, setManifest] = useState<ReleasesManifest | null>(null);
+  const [clientConfig, setClientConfig] = useState<ResolvedClientConfig | null>(null);
+  const location = useLocation();
+  const buildPath = useSearchAwarePath();
 
   const handleDownloadWindowsInstaller = () => {
     const manifestUrl = `${window.location.origin}/releases/latest.json`;
     const clientConfigUrl = `${window.location.origin}/client-config.json`;
-    const script = buildWindowsInstallerScript(manifestUrl, clientConfigUrl);
+    const script = buildWindowsInstallerScript(manifestUrl, clientConfigUrl, clientConfig?.serverOverride);
     downloadTextFile("Install-SecureGuard.ps1", script);
   };
 
   useEffect(() => {
-    loadReleases().then(setManifest).catch(() => undefined);
-  }, []);
+    Promise.all([loadReleases(), loadClientConfig(location.search)])
+      .then(([nextManifest, nextConfig]) => {
+        setManifest(nextManifest);
+        setClientConfig(nextConfig);
+      })
+      .catch(() => undefined);
+  }, [location.search]);
 
   return (
     <SiteShell>
       <section className="content-section">
         <h1>Conta criada com sucesso</h1>
         <p>Agora baixe o app oficial e entre usando a mesma conta que voce acabou de criar.</p>
+        {clientConfig?.serverOverride ? <SelfHostedNotice serverBaseUrl={clientConfig.serverOverride} /> : null}
 
         <div className="download-grid">
           <article className="download-card">
@@ -450,14 +593,25 @@ const PostSignupPage = () => {
             >
               Baixar para Android
             </a>
+            {clientConfig?.serverOverride ? (
+              <div className="download-actions">
+                <a className="secondary-button" href={buildAndroidConnectUrl(clientConfig.serverOverride)}>
+                  Abrir app Android ja configurado
+                </a>
+                <p className="download-note">
+                  Depois de instalar o app Android, volte aqui no celular e toque neste botao para abrir o SecureGuard
+                  ja apontado para o servidor principal.
+                </p>
+              </div>
+            ) : null}
           </article>
         </div>
 
         <div className="cta-row">
-          <Link className="secondary-button" to="/downloads">
+          <Link className="secondary-button" to={buildPath("/downloads")}>
             Ver checksums e detalhes
           </Link>
-          <Link className="secondary-button" to="/">
+          <Link className="secondary-button" to={buildPath("/")}>
             Voltar ao inicio
           </Link>
         </div>
